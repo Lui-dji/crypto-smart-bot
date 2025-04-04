@@ -1,5 +1,10 @@
 import os
-print("[DEBUG] Chargement du fichier main.py...")  # Vérification Render
+print("[DEBUG] Lancement du fichier main.py...")
+
+# Désactivation manuelle du bot
+if os.getenv("BOT_ACTIVE", "true").lower() != "true":
+    print("🛑 BOT désactivé via variable d'environnement")
+    exit()
 
 os.environ["PORT"] = "10000"
 
@@ -21,8 +26,7 @@ exchange = ccxt.binance({
     'enableRateLimit': True
 })
 
-# Paramètres stratégiques
-QUOTE = 'USDT'
+QUOTE = 'USDC'
 BUDGET_USDT = 5
 TAKE_PROFIT = 0.10
 STOP_LOSS = 0.05
@@ -34,7 +38,7 @@ def log(msg):
     print(f"[{datetime.utcnow()}] {msg}")
 
 def run_bot():
-    log("📊 Analyse du marché...")
+    log("📊 Analyse du marché (USDC)...")
     try:
         tickers = exchange.fetch_tickers()
         balance = exchange.fetch_balance()
@@ -54,14 +58,13 @@ def run_bot():
                 last_time = last_trade_time.get(base, now - timedelta(minutes=COOLDOWN_MINUTES + 1))
                 if (now - last_time).total_seconds() / 60 > COOLDOWN_MINUTES:
                     amount = round(BUDGET_USDT / last_price, 6)
-                    log(f"💰 Achat auto de {amount} {base} à {last_price} ({change}%)")
+                    log(f"💰 Achat auto de {amount} {base} à {last_price} {QUOTE} ({change}%)")
                     try:
                         order = exchange.create_market_buy_order(symbol, amount)
                         last_trade_time[base] = now
                     except Exception as e:
                         log(f"❌ Erreur achat : {e}")
 
-            # Vente auto
             positions = balance.get(base)
             if positions and positions['total'] > 0:
                 try:

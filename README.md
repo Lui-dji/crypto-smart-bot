@@ -1,13 +1,16 @@
-# 🤖 Crypto Smart Bot — Version Pro++ (Debug)
+# 🤖 Crypto Smart Bot — USDC + ON/OFF Switch
 
-### Fonctionnalités :
-- Debug avancé pour Render
-- Vérifie que les clés API sont bien détectées
-- Log étape par étape pour identifier tout blocage
+## ✅ Fonctionnalités :
+- Trading en USDC
+- Achat si +5%, vente si +10% ou -5%
+- Budget : 5 USDC par trade
+- Variable BOT_ACTIVE pour désactiver à distance
 
-### Déploiement Render :
-- Build command : `pip install -r requirements.txt`
-- Start command : `python main.py`
-- Variables d’environnement :
-  - `BINANCE_API_KEY`
-  - `BINANCE_SECRET_KEY`
+## 🌐 Variables d’environnement à ajouter :
+- BINANCE_API_KEY
+- BINANCE_SECRET_KEY
+- BOT_ACTIVE = true / false
+
+## 🚀 Démarrage Railway :
+- Build command : pip install -r requirements.txt
+- Start command : python main.py
