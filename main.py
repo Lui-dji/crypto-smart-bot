@@ -1,12 +1,19 @@
 import os
-os.environ["PORT"] = "10000"  # Pour Render Web Service
+print("[DEBUG] Chargement du fichier main.py...")  # Vérification Render
+
+os.environ["PORT"] = "10000"
 
 import time
 import ccxt
 from datetime import datetime, timedelta
 
+print("[DEBUG] Importations réussies.")
+
 API_KEY = os.getenv("BINANCE_API_KEY")
 SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
+
+print(f"[DEBUG] API_KEY = {'OK' if API_KEY else 'MISSING'}")
+print(f"[DEBUG] SECRET_KEY = {'OK' if SECRET_KEY else 'MISSING'}")
 
 exchange = ccxt.binance({
     'apiKey': API_KEY,
@@ -28,9 +35,13 @@ def log(msg):
 
 def run_bot():
     log("📊 Analyse du marché...")
-    tickers = exchange.fetch_tickers()
-    balance = exchange.fetch_balance()
-    usdt_balance = balance['free'].get(QUOTE, 0)
+    try:
+        tickers = exchange.fetch_tickers()
+        balance = exchange.fetch_balance()
+        usdt_balance = balance['free'].get(QUOTE, 0)
+    except Exception as e:
+        log(f"❌ Erreur connexion API Binance : {e}")
+        return
 
     for symbol, ticker in tickers.items():
         if f"/{QUOTE}" in symbol and ticker.get('percentage') is not None:
