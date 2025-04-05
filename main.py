@@ -84,11 +84,11 @@ def run_bot():
                         exchange.create_market_sell_order(symbol, positions['free'])
                 except Exception as e:
                     log(f"❌ Erreur vente : {e}")
-    time.sleep(60)
+    time.sleep(30)
 
 while True:
     try:
         run_bot()
     except Exception as e:
         log(f"🚨 Erreur globale : {e}")
-        time.sleep(60)
+        time.sleep(30)
