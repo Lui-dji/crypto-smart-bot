@@ -51,11 +51,11 @@ def run_bot():
         if f"/{QUOTE}" in symbol and ticker.get('percentage') is not None and symbol in markets:
             market = markets[symbol]
             min_notional = float(market.get("limits", {}).get("cost", {}).get("min", 0))
+            min_amount = float(market.get("limits", {}).get("amount", {}).get("min", 0))
             if min_notional and BUDGET_USDT < min_notional:
-                continue  # Skip si montant trop bas pour cette paire
-
+                continue
             if not market['active']:
-                continue  # Skip marché fermé
+                continue
 
             change = ticker['percentage']
             last_price = ticker['last']
@@ -73,8 +73,9 @@ def run_bot():
                     except Exception as e:
                         log(f"❌ Erreur achat : {e}")
 
+            # Vente auto uniquement si quantité >= min_amount
             positions = balance.get(base)
-            if positions and positions['total'] > 0:
+            if positions and positions['free'] >= min_amount:
                 try:
                     buy_price = last_price / (1 + change / 100)
                     profit = (last_price - buy_price) / buy_price

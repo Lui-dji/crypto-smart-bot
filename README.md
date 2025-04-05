@@ -1,16 +1,13 @@
-# 🤖 Crypto Smart Bot — USDC v2 (filtrage + 10 USDC)
+# 🤖 Crypto Smart Bot — V3 USDC (Anti-dust)
 
-## ✅ Fonctionnalités :
-- Trading en USDC
-- Budget par trade : 10 USDC
-- Filtres :
-  - Ignore les marchés fermés
-  - Ignore les paires dont le minimum d'achat est trop élevé
-- Achat si +5%, vente si +10% ou -5%
-- Cooldown 10 minutes
-- Variable `BOT_ACTIVE` pour pause rapide
+## ✅ Nouveautés :
+- 10 USDC par trade
+- Ignore les marchés fermés
+- Ignore les ordres d'achat trop petits
+- Ignore les tentatives de vente trop petites (filtrage basé sur min_amount)
+- BOT_ACTIVE = true/false
 
-## 🌐 Variables à ajouter sur Railway :
+## 📦 Variables à ajouter :
 - BINANCE_API_KEY
 - BINANCE_SECRET_KEY
-- BOT_ACTIVE = true / false
+- BOT_ACTIVE = true
