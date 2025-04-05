@@ -1,7 +1,6 @@
 import os
 print("[DEBUG] Lancement du fichier main.py...")
 
-# Désactivation manuelle du bot
 if os.getenv("BOT_ACTIVE", "true").lower() != "true":
     print("🛑 BOT désactivé via variable d'environnement")
     exit()
@@ -27,7 +26,7 @@ exchange = ccxt.binance({
 })
 
 QUOTE = 'USDC'
-BUDGET_USDT = 5
+BUDGET_USDT = 10
 TAKE_PROFIT = 0.10
 STOP_LOSS = 0.05
 COOLDOWN_MINUTES = 10
@@ -41,6 +40,7 @@ def run_bot():
     log("📊 Analyse du marché (USDC)...")
     try:
         tickers = exchange.fetch_tickers()
+        markets = exchange.load_markets()
         balance = exchange.fetch_balance()
         usdt_balance = balance['free'].get(QUOTE, 0)
     except Exception as e:
@@ -48,7 +48,15 @@ def run_bot():
         return
 
     for symbol, ticker in tickers.items():
-        if f"/{QUOTE}" in symbol and ticker.get('percentage') is not None:
+        if f"/{QUOTE}" in symbol and ticker.get('percentage') is not None and symbol in markets:
+            market = markets[symbol]
+            min_notional = float(market.get("limits", {}).get("cost", {}).get("min", 0))
+            if min_notional and BUDGET_USDT < min_notional:
+                continue  # Skip si montant trop bas pour cette paire
+
+            if not market['active']:
+                continue  # Skip marché fermé
+
             change = ticker['percentage']
             last_price = ticker['last']
             base = symbol.split("/")[0]
