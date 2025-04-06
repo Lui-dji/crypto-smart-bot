@@ -1,23 +1,17 @@
 import os
-print("[DEBUG] Lancement du fichier main.py...")
-
-if os.getenv("BOT_ACTIVE", "true").lower() != "true":
-    print("🛑 BOT désactivé via variable d'environnement")
-    exit()
-
-os.environ["PORT"] = "10000"
-
 import time
 import ccxt
 from datetime import datetime, timedelta
 
-print("[DEBUG] Importations réussies.")
+print("[DEBUG] Lancement SmartBot++")
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
-
-print(f"[DEBUG] API_KEY = {'OK' if API_KEY else 'MISSING'}")
-print(f"[DEBUG] SECRET_KEY = {'OK' if SECRET_KEY else 'MISSING'}")
+RISK_LEVEL = os.getenv("RISK_LEVEL", "medium").lower()
+RECYCLE_DUST = os.getenv("RECYCLE_DUST", "true").lower() == "true"
+BUDGET_TOTAL = float(os.getenv("BUDGET_TOTAL", 150))
+POSITION_BUDGET = float(os.getenv("POSITION_BUDGET", 10))
+MAX_POSITIONS = int(BUDGET_TOTAL // POSITION_BUDGET)
 
 exchange = ccxt.binance({
     'apiKey': API_KEY,
@@ -25,70 +19,97 @@ exchange = ccxt.binance({
     'enableRateLimit': True
 })
 
-QUOTE = 'USDC'
-BUDGET_USDT = 10
-TAKE_PROFIT = 0.10
-STOP_LOSS = 0.05
-COOLDOWN_MINUTES = 10
-
+positions = {}
 last_trade_time = {}
 
-def log(msg):
-    print(f"[{datetime.utcnow()}] {msg}")
+def log(msg): print(f"[{datetime.utcnow()}] {msg}")
+
+def get_open_positions(balance):
+    return [coin for coin, data in balance.items() if isinstance(data, dict) and data['total'] > 0]
 
 def run_bot():
-    log("📊 Analyse du marché (USDC)...")
+    global positions
     try:
+        balance = exchange.fetch_balance()
         tickers = exchange.fetch_tickers()
         markets = exchange.load_markets()
-        balance = exchange.fetch_balance()
-        usdt_balance = balance['free'].get(QUOTE, 0)
+        usdc_balance = balance['free'].get('USDC', 0)
     except Exception as e:
-        log(f"❌ Erreur connexion API Binance : {e}")
+        log(f"❌ Erreur API : {e}")
         return
 
-    for symbol, ticker in tickers.items():
-        if f"/{QUOTE}" in symbol and ticker.get('percentage') is not None and symbol in markets:
-            market = markets[symbol]
-            min_notional = float(market.get("limits", {}).get("cost", {}).get("min", 0))
-            min_amount = float(market.get("limits", {}).get("amount", {}).get("min", 0))
-            if min_notional and BUDGET_USDT < min_notional:
-                continue
-            if not market['active']:
-                continue
+    log("📊 Analyse du marché...")
 
-            change = ticker['percentage']
-            last_price = ticker['last']
-            base = symbol.split("/")[0]
+    for symbol in tickers:
+        if "/USDC" not in symbol or symbol not in markets:
+            continue
+        base = symbol.replace("/USDC", "")
+        market = markets[symbol]
+        min_sell = float(market.get("limits", {}).get("amount", {}).get("min", 0.01))
+        ticker = tickers[symbol]
+        if ticker.get("last") is None or ticker.get("percentage") is None:
+            continue
 
-            if change > 5.0 and usdt_balance >= BUDGET_USDT:
-                now = datetime.utcnow()
-                last_time = last_trade_time.get(base, now - timedelta(minutes=COOLDOWN_MINUTES + 1))
-                if (now - last_time).total_seconds() / 60 > COOLDOWN_MINUTES:
-                    amount = round(BUDGET_USDT / last_price, 6)
-                    log(f"💰 Achat auto de {amount} {base} à {last_price} {QUOTE} ({change}%)")
-                    try:
-                        order = exchange.create_market_buy_order(symbol, amount)
-                        last_trade_time[base] = now
-                    except Exception as e:
-                        log(f"❌ Erreur achat : {e}")
+        last_price = ticker["last"]
+        change = ticker["percentage"]
+        qty = balance.get(base, {}).get("free", 0)
 
-            # Vente auto uniquement si quantité >= min_amount
-            positions = balance.get(base)
-            if positions and positions['free'] >= min_amount:
+        if qty < min_sell:
+            if RECYCLE_DUST and usdc_balance >= last_price * (min_sell - qty):
+                to_buy = min_sell - qty
+                log(f"♻️ Recyclage : achat {round(to_buy, 6)} {base} pour vider résidu")
                 try:
-                    buy_price = last_price / (1 + change / 100)
-                    profit = (last_price - buy_price) / buy_price
-                    if profit >= TAKE_PROFIT or profit <= -STOP_LOSS:
-                        log(f"⚠️ Vente auto de {positions['free']} {base} à {last_price} (Profit: {round(profit*100, 2)}%)")
-                        exchange.create_market_sell_order(symbol, positions['free'])
+                    exchange.create_market_buy_order(symbol, to_buy)
+                    time.sleep(1)
+                    qty = min_sell
                 except Exception as e:
-                    log(f"❌ Erreur vente : {e}")
-    time.sleep(50)
+                    log(f"❌ Erreur recyclage : {e}")
+                    continue
+            else:
+                continue
+
+        if qty >= min_sell and (change >= 10 or change <= -5):
+            try:
+                exchange.create_market_sell_order(symbol, qty)
+                log(f"⚠️ Vente de {qty} {base} à {last_price} (Change: {change}%)")
+                time.sleep(1)
+            except Exception as e:
+                log(f"❌ Erreur vente {base} : {e}")
+
+    if len(get_open_positions(balance)) >= MAX_POSITIONS:
+        log(f"🚫 Max positions atteintes ({MAX_POSITIONS}), attente...")
+        return
+
+    for symbol in tickers:
+        if "/USDC" not in symbol or symbol not in markets:
+            continue
+        base = symbol.replace("/USDC", "")
+        market = markets[symbol]
+        if not market["active"]:
+            continue
+        min_cost = float(market.get("limits", {}).get("cost", {}).get("min", 0))
+        ticker = tickers[symbol]
+        if ticker.get("percentage") is None or ticker.get("last") is None:
+            continue
+
+        change = ticker["percentage"]
+        last_price = ticker["last"]
+
+        if change < 5 or POSITION_BUDGET < min_cost or usdc_balance < POSITION_BUDGET:
+            continue
+
+        amount = round(POSITION_BUDGET / last_price, 6)
+        try:
+            exchange.create_market_buy_order(symbol, amount)
+            log(f"💰 Achat {amount} {base} à {last_price} (Change: {change}%)")
+            break
+        except Exception as e:
+            log(f"❌ Erreur achat {base}: {e}")
 
 while True:
     try:
         run_bot()
+        time.sleep(60)
     except Exception as e:
         log(f"🚨 Erreur globale : {e}")
-        time.sleep(50)
+        time.sleep(60)
