@@ -3,7 +3,7 @@ import time
 import ccxt
 from datetime import datetime, timezone
 
-print("[DEBUG] Lancement SmartBot++ PATCH 5 - Vente 100% stable")
+print("[DEBUG] Lancement SmartBot++ PATCH 6 - Cast precision FIX")
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
@@ -42,7 +42,7 @@ def run_bot():
         market = markets[symbol]
         min_sell = float(market.get("limits", {}).get("amount", {}).get("min", 0.01))
         min_notional = float(market.get("limits", {}).get("cost", {}).get("min", 1))
-        precision = market.get("precision", {}).get("amount", 6)
+        precision = int(market.get("precision", {}).get("amount", 6))  # Cast ici
         ticker = tickers[symbol]
         if ticker.get("last") is None:
             continue
@@ -59,11 +59,9 @@ def run_bot():
                     log(f"♻️ Recyclage : achat {round(needed, precision)} {base}")
                     time.sleep(1.0)
 
-                    # Rafraîchir le solde après achat
                     balance = exchange.fetch_balance()
                     qty = balance.get(base, {}).get("free", 0)
 
-                    # Vente en boucle tant qu'on dépasse les min
                     while qty >= min_sell and qty * last_price >= min_notional:
                         sell_qty = round(qty, precision)
                         if sell_qty <= 0:
