@@ -3,7 +3,7 @@ import time
 import ccxt
 from datetime import datetime, timezone
 
-print("[DEBUG] Lancement SmartBot++ PATCH 3 - Recyclage + Revente directe")
+print("[DEBUG] Lancement SmartBot++ PATCH 4 - Revente 100% assurée")
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
@@ -42,6 +42,7 @@ def run_bot():
         market = markets[symbol]
         min_sell = float(market.get("limits", {}).get("amount", {}).get("min", 0.01))
         min_notional = float(market.get("limits", {}).get("cost", {}).get("min", 1))
+        precision = market.get("precision", {}).get("amount", 6)
         ticker = tickers[symbol]
         if ticker.get("last") is None:
             continue
@@ -54,14 +55,23 @@ def run_bot():
             cost = needed * last_price
             if RECYCLE_DUST and usdc_balance >= cost and cost >= min_notional:
                 try:
-                    exchange.create_market_buy_order(symbol, needed)
-                    log(f"♻️ Recyclage : achat {round(needed, 6)} {base}")
+                    exchange.create_market_buy_order(symbol, round(needed, precision))
+                    log(f"♻️ Recyclage : achat {round(needed, precision)} {base}")
                     time.sleep(1)
 
-                    full_qty = qty + needed
-                    exchange.create_market_sell_order(symbol, full_qty)
-                    log(f"✅ Résidu revendu : {full_qty} {base} à {last_price}")
-                    time.sleep(1)
+                    # Rafraîchir le solde après achat
+                    balance = exchange.fetch_balance()
+                    qty = balance.get(base, {}).get("free", 0)
+
+                    # Vente en boucle tant qu'on dépasse les min
+                    while qty >= min_sell and qty * last_price >= min_notional:
+                        sell_qty = round(qty, precision)
+                        exchange.create_market_sell_order(symbol, sell_qty)
+                        log(f"✅ Résidu revendu : {sell_qty} {base}")
+                        time.sleep(2)
+                        balance = exchange.fetch_balance()
+                        qty = balance.get(base, {}).get("free", 0)
+
                     continue
                 except Exception as e:
                     log(f"❌ Erreur recyclage/vente {base} : {e}")
@@ -70,8 +80,9 @@ def run_bot():
         # Vente normale si valeur suffisante
         if qty >= min_sell and qty * last_price >= min_notional:
             try:
-                exchange.create_market_sell_order(symbol, qty)
-                log(f"⚠️ Vente directe de {qty} {base} à {last_price}")
+                sell_qty = round(qty, precision)
+                exchange.create_market_sell_order(symbol, sell_qty)
+                log(f"⚠️ Vente directe de {sell_qty} {base} à {last_price}")
                 time.sleep(1)
             except Exception as e:
                 log(f"❌ Erreur vente {base} : {e}")
