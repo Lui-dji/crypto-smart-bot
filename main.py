@@ -1,9 +1,9 @@
 import os
 import time
 import ccxt
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 
-print("[DEBUG] Lancement SmartBot++ PATCH")
+print("[DEBUG] Lancement SmartBot++ PATCH 2")
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
@@ -22,10 +22,10 @@ exchange = ccxt.binance({
 positions = {}
 last_trade_time = {}
 
-def log(msg): print(f"[{datetime.utcnow()}] {msg}")
+def log(msg): print(f"[{datetime.now(timezone.utc)}] {msg}")
 
 def get_open_positions(balance):
-    return [coin for coin, data in balance.items() if isinstance(data, dict) and data['total'] > 0]
+    return [coin for coin, data in balance.items() if isinstance(data, dict) and data.get('total', 0) > 0]
 
 def run_bot():
     global positions
@@ -55,7 +55,7 @@ def run_bot():
         change = ticker["percentage"]
         qty = balance.get(base, {}).get("free", 0)
 
-        # PATCH ici : vérifie que la valeur d'achat supplémentaire atteindrait bien 1 USDC mini
+        # PATCH recyclage
         if qty < min_sell:
             needed = min_sell - qty
             cost = needed * last_price
@@ -71,7 +71,8 @@ def run_bot():
             else:
                 continue
 
-        if qty >= min_sell and (change >= 10 or change <= -5):
+        # PATCH vente trop petite
+        if qty >= min_sell and qty * last_price >= min_notional and (change >= 10 or change <= -5):
             try:
                 exchange.create_market_sell_order(symbol, qty)
                 log(f"⚠️ Vente de {qty} {base} à {last_price} (Change: {change}%)")
