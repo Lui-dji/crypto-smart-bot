@@ -4,7 +4,7 @@ import math
 import ccxt
 from datetime import datetime, timezone
 
-print("[DEBUG] Lancement SmartBot++ PATCH 8 - Dust Merge + Flush")
+print("[DEBUG] Lancement SmartBot++ PATCH 9 - True stepSize from filters")
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
@@ -43,33 +43,34 @@ def run_bot():
 
         base = symbol.replace("/USDC", "")
         market = markets[symbol]
-        min_sell = float(market.get("limits", {}).get("amount", {}).get("min", 0.01))
-        min_notional = float(market.get("limits", {}).get("cost", {}).get("min", 1))
-        step_size = float(market.get("precision", {}).get("amount", 6))
+        filters = market.get("info", {}).get("filters", [])
+        stepSize = next((float(f["stepSize"]) for f in filters if f["filterType"] == "LOT_SIZE"), 0.000001)
+        minQty = next((float(f["minQty"]) for f in filters if f["filterType"] == "LOT_SIZE"), 0.000001)
+        minNotional = float(market.get("limits", {}).get("cost", {}).get("min", 1))
+
         ticker = tickers[symbol]
         if ticker.get("last") is None:
             continue
 
         last_price = ticker["last"]
         qty = balance.get(base, {}).get("free", 0)
-        adjusted_qty = adjust_to_step(qty, step_size)
+        adjusted_qty = adjust_to_step(qty, stepSize)
 
-        # Si la quantité est trop faible pour être vendue, on tente de compléter
-        if adjusted_qty < min_sell or adjusted_qty * last_price < min_notional:
+        if adjusted_qty < minQty or adjusted_qty * last_price < minNotional:
             if RECYCLE_DUST and usdc_balance > 0:
-                needed = min_sell - qty
+                needed = minQty - qty
                 cost = needed * last_price
-                if cost <= usdc_balance and cost >= min_notional:
+                if cost <= usdc_balance and cost >= minNotional:
                     try:
-                        buy_qty = adjust_to_step(needed, step_size)
+                        buy_qty = adjust_to_step(needed, stepSize)
                         exchange.create_market_buy_order(symbol, buy_qty)
-                        log(f"♻️ Achat complémentaire : {buy_qty} {base} pour compléter un résidu")
+                        log(f"♻️ Achat complémentaire : {buy_qty} {base} pour atteindre minQty")
                         time.sleep(1.5)
-                        # Après achat, revente complète
+
                         balance = exchange.fetch_balance()
                         qty = balance.get(base, {}).get("free", 0)
-                        sell_qty = adjust_to_step(qty, step_size)
-                        if sell_qty >= min_sell and sell_qty * last_price >= min_notional:
+                        sell_qty = adjust_to_step(qty, stepSize)
+                        if sell_qty >= minQty and sell_qty * last_price >= minNotional:
                             exchange.create_market_sell_order(symbol, sell_qty)
                             log(f"✅ Résidu fusionné & revendu : {sell_qty} {base}")
                             time.sleep(1.5)
@@ -77,8 +78,7 @@ def run_bot():
                         log(f"❌ Erreur fusion/vente {base} : {e}")
             continue
 
-        # Si assez de quantité → vendre normalement (flush)
-        if FLUSH_MODE and adjusted_qty >= min_sell and adjusted_qty * last_price >= min_notional:
+        if FLUSH_MODE and adjusted_qty >= minQty and adjusted_qty * last_price >= minNotional:
             try:
                 exchange.create_market_sell_order(symbol, adjusted_qty)
                 log(f"🧹 Flush direct : {adjusted_qty} {base}")
