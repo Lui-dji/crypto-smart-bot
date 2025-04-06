@@ -4,12 +4,13 @@ import math
 import ccxt
 from datetime import datetime, timezone
 
-print("[DEBUG] Lancement SmartBot++ PATCH 9 - True stepSize from filters")
+print("[DEBUG] Lancement SmartBot++ PATCH 10 - Overbuy Dust Flush")
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 RECYCLE_DUST = os.getenv("RECYCLE_DUST", "true").lower() == "true"
 FLUSH_MODE = os.getenv("FLUSH_MODE", "true").lower() == "true"
+OVERBUY_FACTOR = float(os.getenv("DUST_OVERBUY_FACTOR", 3))
 BUDGET_TOTAL = float(os.getenv("BUDGET_TOTAL", 150))
 POSITION_BUDGET = float(os.getenv("POSITION_BUDGET", 10))
 MAX_POSITIONS = int(BUDGET_TOTAL // POSITION_BUDGET)
@@ -58,13 +59,15 @@ def run_bot():
 
         if adjusted_qty < minQty or adjusted_qty * last_price < minNotional:
             if RECYCLE_DUST and usdc_balance > 0:
-                needed = minQty - qty
+                # Overbuy mode activé
+                target_qty = minQty * OVERBUY_FACTOR
+                needed = target_qty - qty
                 cost = needed * last_price
                 if cost <= usdc_balance and cost >= minNotional:
                     try:
                         buy_qty = adjust_to_step(needed, stepSize)
                         exchange.create_market_buy_order(symbol, buy_qty)
-                        log(f"♻️ Achat complémentaire : {buy_qty} {base} pour atteindre minQty")
+                        log(f"♻️ OVERBUY : {buy_qty} {base} pour atteindre {target_qty}")
                         time.sleep(1.5)
 
                         balance = exchange.fetch_balance()
@@ -72,10 +75,10 @@ def run_bot():
                         sell_qty = adjust_to_step(qty, stepSize)
                         if sell_qty >= minQty and sell_qty * last_price >= minNotional:
                             exchange.create_market_sell_order(symbol, sell_qty)
-                            log(f"✅ Résidu fusionné & revendu : {sell_qty} {base}")
+                            log(f"✅ Résidu OVERBUY & revendu : {sell_qty} {base}")
                             time.sleep(1.5)
                     except Exception as e:
-                        log(f"❌ Erreur fusion/vente {base} : {e}")
+                        log(f"❌ Erreur overbuy/vente {base} : {e}")
             continue
 
         if FLUSH_MODE and adjusted_qty >= minQty and adjusted_qty * last_price >= minNotional:
