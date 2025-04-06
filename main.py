@@ -140,7 +140,7 @@ def run_bot():
 while True:
     try:
         run_bot()
-        time.sleep(60.0)
+        time.sleep(5.0)
     except Exception as e:
         log(f"🚨 Erreur globale : {e}")
-        time.sleep(60.0)
+        time.sleep(5.0)
