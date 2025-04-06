@@ -3,7 +3,7 @@ import time
 import ccxt
 from datetime import datetime, timezone
 
-print("[DEBUG] Lancement SmartBot++ PATCH 4 - Revente 100% assurée")
+print("[DEBUG] Lancement SmartBot++ PATCH 5 - Vente 100% stable")
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
@@ -57,7 +57,7 @@ def run_bot():
                 try:
                     exchange.create_market_buy_order(symbol, round(needed, precision))
                     log(f"♻️ Recyclage : achat {round(needed, precision)} {base}")
-                    time.sleep(1)
+                    time.sleep(1.0)
 
                     # Rafraîchir le solde après achat
                     balance = exchange.fetch_balance()
@@ -66,9 +66,12 @@ def run_bot():
                     # Vente en boucle tant qu'on dépasse les min
                     while qty >= min_sell and qty * last_price >= min_notional:
                         sell_qty = round(qty, precision)
+                        if sell_qty <= 0:
+                            log(f"⛔ Skip {base}, quantité trop faible : {sell_qty}")
+                            break
                         exchange.create_market_sell_order(symbol, sell_qty)
                         log(f"✅ Résidu revendu : {sell_qty} {base}")
-                        time.sleep(2)
+                        time.sleep(2.0)
                         balance = exchange.fetch_balance()
                         qty = balance.get(base, {}).get("free", 0)
 
@@ -77,20 +80,22 @@ def run_bot():
                     log(f"❌ Erreur recyclage/vente {base} : {e}")
                     continue
 
-        # Vente normale si valeur suffisante
         if qty >= min_sell and qty * last_price >= min_notional:
             try:
                 sell_qty = round(qty, precision)
+                if sell_qty <= 0:
+                    log(f"⛔ Skip {base}, quantité trop faible pour vente directe")
+                    continue
                 exchange.create_market_sell_order(symbol, sell_qty)
                 log(f"⚠️ Vente directe de {sell_qty} {base} à {last_price}")
-                time.sleep(1)
+                time.sleep(1.0)
             except Exception as e:
                 log(f"❌ Erreur vente {base} : {e}")
 
 while True:
     try:
         run_bot()
-        time.sleep(60)
+        time.sleep(60.0)
     except Exception as e:
         log(f"🚨 Erreur globale : {e}")
-        time.sleep(60)
+        time.sleep(60.0)
