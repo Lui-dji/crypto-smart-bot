@@ -3,7 +3,7 @@ import time
 import ccxt
 from datetime import datetime, timedelta
 
-print("[DEBUG] Lancement SmartBot++")
+print("[DEBUG] Lancement SmartBot++ PATCH")
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
@@ -46,6 +46,7 @@ def run_bot():
         base = symbol.replace("/USDC", "")
         market = markets[symbol]
         min_sell = float(market.get("limits", {}).get("amount", {}).get("min", 0.01))
+        min_notional = float(market.get("limits", {}).get("cost", {}).get("min", 1))
         ticker = tickers[symbol]
         if ticker.get("last") is None or ticker.get("percentage") is None:
             continue
@@ -54,12 +55,14 @@ def run_bot():
         change = ticker["percentage"]
         qty = balance.get(base, {}).get("free", 0)
 
+        # PATCH ici : vérifie que la valeur d'achat supplémentaire atteindrait bien 1 USDC mini
         if qty < min_sell:
-            if RECYCLE_DUST and usdc_balance >= last_price * (min_sell - qty):
-                to_buy = min_sell - qty
-                log(f"♻️ Recyclage : achat {round(to_buy, 6)} {base} pour vider résidu")
+            needed = min_sell - qty
+            cost = needed * last_price
+            if RECYCLE_DUST and usdc_balance >= cost and cost >= min_notional:
+                log(f"♻️ Recyclage : achat {round(needed, 6)} {base} pour vider résidu")
                 try:
-                    exchange.create_market_buy_order(symbol, to_buy)
+                    exchange.create_market_buy_order(symbol, needed)
                     time.sleep(1)
                     qty = min_sell
                 except Exception as e:
