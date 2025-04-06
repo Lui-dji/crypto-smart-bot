@@ -10,4 +10,4 @@ cleaner = Cleaner()
 while True:
     trader.run()
     cleaner.run()
-    time.sleep(60)
+    time.sleep(30)

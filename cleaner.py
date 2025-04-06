@@ -28,10 +28,16 @@ class Cleaner:
             if not price:
                 continue
             qty = balance.get(base, {}).get("free", 0)
-            min_sell = 1 / price  # min 1 USDC
-            if qty * price >= 1:
+            market = markets[symbol]
+            filters = market.get("info", {}).get("filters", [])
+            step = float(next((f["stepSize"] for f in filters if f["filterType"] == "LOT_SIZE"), 0.000001))
+            minQty = float(next((f["minQty"] for f in filters if f["filterType"] == "LOT_SIZE"), 0.000001))
+            minNotional = float(next((f.get("minNotional", 1) for f in filters if f["filterType"] == "NOTIONAL"), 1))
+
+            sell_qty = qty - (qty % step)
+            if sell_qty >= minQty and sell_qty * price >= minNotional:
                 try:
-                    self.exchange.create_market_sell_order(symbol, qty)
-                    log(f"🧹 Revente résidu : {qty} {base}")
+                    self.exchange.create_market_sell_order(symbol, sell_qty)
+                    log(f"🧹 Revente résidu : {sell_qty} {base}")
                 except Exception as e:
                     log(f"❌ Cleaner erreur {base} : {e}")
