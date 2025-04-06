@@ -4,7 +4,7 @@ import math
 import ccxt
 from datetime import datetime, timezone
 
-print("[DEBUG] Lancement SmartBot++ PATCH 7 - FLUSH + stepSize FIX")
+print("[DEBUG] Lancement SmartBot++ PATCH 8 - Dust Merge + Flush")
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
@@ -21,9 +21,6 @@ exchange = ccxt.binance({
 })
 
 def log(msg): print(f"[{datetime.now(timezone.utc)}] {msg}")
-
-def get_open_positions(balance):
-    return [coin for coin, data in balance.items() if isinstance(data, dict) and data.get('total', 0) > 0]
 
 def adjust_to_step(value, step):
     return math.floor(value / step) * step
@@ -57,16 +54,37 @@ def run_bot():
         qty = balance.get(base, {}).get("free", 0)
         adjusted_qty = adjust_to_step(qty, step_size)
 
+        # Si la quantité est trop faible pour être vendue, on tente de compléter
         if adjusted_qty < min_sell or adjusted_qty * last_price < min_notional:
+            if RECYCLE_DUST and usdc_balance > 0:
+                needed = min_sell - qty
+                cost = needed * last_price
+                if cost <= usdc_balance and cost >= min_notional:
+                    try:
+                        buy_qty = adjust_to_step(needed, step_size)
+                        exchange.create_market_buy_order(symbol, buy_qty)
+                        log(f"♻️ Achat complémentaire : {buy_qty} {base} pour compléter un résidu")
+                        time.sleep(1.5)
+                        # Après achat, revente complète
+                        balance = exchange.fetch_balance()
+                        qty = balance.get(base, {}).get("free", 0)
+                        sell_qty = adjust_to_step(qty, step_size)
+                        if sell_qty >= min_sell and sell_qty * last_price >= min_notional:
+                            exchange.create_market_sell_order(symbol, sell_qty)
+                            log(f"✅ Résidu fusionné & revendu : {sell_qty} {base}")
+                            time.sleep(1.5)
+                    except Exception as e:
+                        log(f"❌ Erreur fusion/vente {base} : {e}")
             continue
 
-        try:
-            if FLUSH_MODE or RECYCLE_DUST:
+        # Si assez de quantité → vendre normalement (flush)
+        if FLUSH_MODE and adjusted_qty >= min_sell and adjusted_qty * last_price >= min_notional:
+            try:
                 exchange.create_market_sell_order(symbol, adjusted_qty)
-                log(f"🧹 Flush/Revente : {adjusted_qty} {base} à {last_price}")
-                time.sleep(2.0)
-        except Exception as e:
-            log(f"❌ Erreur flush/vente {base} : {e}")
+                log(f"🧹 Flush direct : {adjusted_qty} {base}")
+                time.sleep(1.5)
+            except Exception as e:
+                log(f"❌ Erreur flush {base} : {e}")
 
 while True:
     try:
