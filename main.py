@@ -4,7 +4,7 @@ import math
 import ccxt
 from datetime import datetime, timezone
 
-print("[DEBUG] Lancement SmartBot++ PATCH 12 - Looping Residue Flush")
+print("[DEBUG] Lancement SmartBot++ PATCH 13 - Dynamic USDC + Anti-loop")
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
@@ -27,7 +27,6 @@ def adjust_to_step(value, step):
     return math.floor(value / step) * step
 
 def attempt_final_resell(base, symbol, step, minQty, minNotional, last_price):
-    """Essaie de vider la position jusqu'à disparition du résidu"""
     for _ in range(3):
         try:
             balance = exchange.fetch_balance()
@@ -49,6 +48,7 @@ def run_bot():
         tickers = exchange.fetch_tickers()
         markets = exchange.load_markets()
         usdc_balance = balance['free'].get('USDC', 0)
+        log(f"💰 Solde USDC actuel : {usdc_balance:.4f}")
     except Exception as e:
         log(f"❌ Erreur API : {e}")
         return
@@ -97,9 +97,15 @@ def run_bot():
                 "last_price": last_price
             })
 
+    treated = set()
+
     for item in dust_targets:
         symbol = item["symbol"]
         base = item["base"]
+
+        if base in treated:
+            continue  # éviter de boucler en double sur le même coin
+
         qty = item["qty"]
         step = item["step"]
         minQty = item["minQty"]
@@ -126,8 +132,10 @@ def run_bot():
                     time.sleep(1.5)
                     attempt_final_resell(base, symbol, step, minQty, minNotional, last_price)
                     usdc_balance = updated['free'].get('USDC', usdc_balance)
+                    treated.add(base)
             except Exception as e:
                 log(f"❌ Erreur overbuy/vente {base} : {e}")
+                treated.add(base)
 
 while True:
     try:
