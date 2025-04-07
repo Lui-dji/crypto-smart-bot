@@ -2,10 +2,13 @@ from trader import TraderBot
 from cleaner import Cleaner
 import time
 from utils import log
+import os
 
-print("[DEBUG] Lancement SmartBot++ PRO 1.1")
+SCORE_MIN = float(os.getenv("SCORE_MIN", 0.75))
 
-trader = TraderBot()
+print(f"[DEBUG] Lancement SmartBot++ PRO 1.2 | Seuil score min: {SCORE_MIN}")
+
+trader = TraderBot(score_min=SCORE_MIN)
 cleaner = Cleaner()
 
 while True:

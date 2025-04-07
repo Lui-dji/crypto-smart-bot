@@ -4,7 +4,7 @@ import time
 from utils import log, get_trend_score
 
 class TraderBot:
-    def __init__(self):
+    def __init__(self, score_min=0.75):
         self.exchange = ccxt.binance({
             'apiKey': os.getenv("BINANCE_API_KEY"),
             'secret': os.getenv("BINANCE_SECRET_KEY"),
@@ -12,6 +12,7 @@ class TraderBot:
         })
         self.budget_per_position = float(os.getenv("POSITION_BUDGET", 15))
         self.positions = {}
+        self.score_min = score_min
 
     def run(self):
         try:
@@ -23,7 +24,6 @@ class TraderBot:
             return
 
         count = 0
-
         for symbol, ticker in tickers.items():
             if "/USDC" not in symbol or symbol not in markets:
                 continue
@@ -38,7 +38,7 @@ class TraderBot:
             score = get_trend_score(self.exchange, symbol)
             log(f"🔎 {symbol} score={score:.2f}")
 
-            if score < 0.75:
+            if score < self.score_min:
                 continue
 
             usdc = balance['free'].get('USDC', 0)

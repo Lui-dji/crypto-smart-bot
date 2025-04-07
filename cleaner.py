@@ -20,24 +20,53 @@ class Cleaner:
             log(f"❌ Cleaner Erreur API : {e}")
             return
 
-        for symbol, ticker in tickers.items():
-            if "/USDC" not in symbol or symbol not in markets:
+        usdc = balance['free'].get('USDC', 0)
+
+        for base, qty in balance['free'].items():
+            if base in ["USDC"] or qty == 0:
                 continue
-            base = symbol.replace("/USDC", "")
-            price = ticker.get("last")
+
+            symbol = f"{base}/USDC"
+            if symbol not in tickers or symbol not in markets:
+                continue
+
+            price = tickers[symbol].get("last")
             if not price:
                 continue
-            qty = balance.get(base, {}).get("free", 0)
-            market = markets[symbol]
-            filters = market.get("info", {}).get("filters", [])
-            step = float(next((f["stepSize"] for f in filters if f["filterType"] == "LOT_SIZE"), 0.000001))
-            minQty = float(next((f["minQty"] for f in filters if f["filterType"] == "LOT_SIZE"), 0.000001))
-            minNotional = float(next((f.get("minNotional", 1) for f in filters if f["filterType"] == "NOTIONAL"), 1))
 
+            market = markets[symbol]
+            filters = {f["filterType"]: f for f in market.get("info", {}).get("filters", [])}
+            step = float(filters.get("LOT_SIZE", {}).get("stepSize", 0.000001))
+            minQty = float(filters.get("LOT_SIZE", {}).get("minQty", 0.000001))
+            minNotional = float(filters.get("NOTIONAL", {}).get("minNotional", 1))
+
+            # Corrige la quantité au stepSize
             sell_qty = qty - (qty % step)
+
             if sell_qty >= minQty and sell_qty * price >= minNotional:
                 try:
                     self.exchange.create_market_sell_order(symbol, sell_qty)
-                    log(f"🧹 Revente résidu : {sell_qty} {base}")
+                    log(f"🧹 Revente directe : {sell_qty} {base}")
                 except Exception as e:
-                    log(f"❌ Cleaner erreur {base} : {e}")
+                    log(f"❌ Erreur vente {base} : {e}")
+            else:
+                # Calcul de la quantité manquante pour flush
+                target_qty = max(minQty, minNotional / price)
+                buy_qty = target_qty - qty
+                buy_qty = round(buy_qty + (step - (buy_qty % step)), 6)
+
+                cost = buy_qty * price
+                if cost <= usdc and buy_qty > 0:
+                    try:
+                        self.exchange.create_market_buy_order(symbol, buy_qty)
+                        log(f"♻️ Achat flush {buy_qty:.6f} {base} pour résidu")
+                        time.sleep(1)
+                        total_qty = qty + buy_qty
+                        total_qty -= (total_qty % step)
+                        self.exchange.create_market_sell_order(symbol, total_qty)
+                        log(f"✅ Flush complet : {total_qty:.6f} {base} vendu")
+                        usdc -= cost
+                    except Exception as e:
+                        log(f"❌ Erreur flush {base} : {e}")
+                else:
+                    log(f"⏳ Résidu {base} trop petit ou insuffisant USDC ({qty:.6f})")
