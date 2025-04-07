@@ -1,18 +1,17 @@
-import time
-import ccxt
-from datetime import datetime, timezone
+from datetime import datetime
 
 def log(msg):
-    print(f"[{datetime.now(timezone.utc)}] {msg}")
+    print(f"[{datetime.utcnow()}] {msg}")
 
 def get_trend_score(exchange, symbol):
     try:
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1m', limit=10)
-        closes = [c[4] for c in ohlcv]
-        if len(closes) < 5:
+        candles = exchange.fetch_ohlcv(symbol, timeframe='1m', limit=10)
+        if len(candles) < 2:
             return 0
-        delta = closes[-1] - closes[0]
-        score = delta / closes[0]
-        return max(0, min(1, score * 10))  # Normalisé entre 0 et 1
-    except Exception as e:
+        first = candles[0][4]
+        last = candles[-1][4]
+        delta = (last - first) / first
+        score = max(0, min(1, delta * 10))
+        return score
+    except:
         return 0

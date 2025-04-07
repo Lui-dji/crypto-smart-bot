@@ -4,9 +4,9 @@ import time
 from utils import log
 import os
 
-SCORE_MIN = float(os.getenv("SCORE_MIN", 0.75))
+SCORE_MIN = float(os.getenv("SCORE_MIN", 0.35))
 
-print(f"[DEBUG] Lancement SmartBot++ PRO 1.2 | Seuil score min: {SCORE_MIN}")
+print(f"[DEBUG] Lancement SmartBot++ PRO 1.4 | Seuil score min: {SCORE_MIN}")
 
 trader = TraderBot(score_min=SCORE_MIN)
 cleaner = Cleaner()

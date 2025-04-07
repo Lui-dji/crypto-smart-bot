@@ -40,7 +40,6 @@ class Cleaner:
             minQty = float(filters.get("LOT_SIZE", {}).get("minQty", 0.000001))
             minNotional = float(filters.get("NOTIONAL", {}).get("minNotional", 1))
 
-            # Corrige la quantité au stepSize
             sell_qty = qty - (qty % step)
 
             if sell_qty >= minQty and sell_qty * price >= minNotional:
@@ -50,7 +49,6 @@ class Cleaner:
                 except Exception as e:
                     log(f"❌ Erreur vente {base} : {e}")
             else:
-                # Calcul de la quantité manquante pour flush
                 target_qty = max(minQty, minNotional / price)
                 buy_qty = target_qty - qty
                 buy_qty = round(buy_qty + (step - (buy_qty % step)), 6)

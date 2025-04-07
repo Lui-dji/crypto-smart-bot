@@ -4,7 +4,7 @@ import time
 from utils import log, get_trend_score
 
 class TraderBot:
-    def __init__(self, score_min=0.75):
+    def __init__(self, score_min=0.35):
         self.exchange = ccxt.binance({
             'apiKey': os.getenv("BINANCE_API_KEY"),
             'secret': os.getenv("BINANCE_SECRET_KEY"),
@@ -13,6 +13,7 @@ class TraderBot:
         self.budget_per_position = float(os.getenv("POSITION_BUDGET", 15))
         self.positions = {}
         self.score_min = score_min
+        self.ignore_sell = os.getenv("IGNORE_SELL", "").split(",")
 
     def run(self):
         try:
@@ -54,6 +55,11 @@ class TraderBot:
             elif self.positions:
                 worst = min(self.positions.items(), key=lambda x: x[1])
                 worst_symbol = f"{worst[0]}/USDC"
+
+                if worst[0] in self.ignore_sell:
+                    log(f"🚫 Ignoré pour vente (conservé) : {worst[0]}")
+                    continue
+
                 try:
                     qty = balance.get(worst[0], {}).get("free", 0)
                     if qty > 0:
