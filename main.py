@@ -20,6 +20,10 @@ exchange = ccxt.binance({
 
 def log(msg): print(f"[{datetime.utcnow()}] {msg}")
 
+log(f"🔧 POSITION_BUDGET = {POSITION_BUDGET}")
+log(f"🔧 SCORE_MIN = {SCORE_MIN}")
+log(f"🔧 IGNORE_SELL = {IGNORE_SELL}")
+
 # === DUMMY AI MODEL ===
 def compute_score(prices):
     if len(prices) < 3 or any(p is None for p in prices):
