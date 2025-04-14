@@ -1,23 +1,60 @@
-from trader import TraderBot
-from cleaner import Cleaner
-import time
-from utils import log
+
 import os
+import time
+from datetime import datetime
+import ccxt
+import numpy as np
 
+# === CONFIG ===
+API_KEY = os.getenv("BINANCE_API_KEY")
+API_SECRET = os.getenv("BINANCE_SECRET_KEY")
+POSITION_BUDGET = float(os.getenv("POSITION_BUDGET", 15))
 SCORE_MIN = float(os.getenv("SCORE_MIN", 0.35))
+IGNORE_SELL = os.getenv("IGNORE_SELL", "").split(",")
 
-print(f"[DEBUG] Lancement SmartBot++ PRO 1.4 | Seuil score min: {SCORE_MIN}")
+exchange = ccxt.binance({
+    'apiKey': API_KEY,
+    'secret': API_SECRET,
+    'enableRateLimit': True
+})
 
-trader = TraderBot(score_min=SCORE_MIN)
-cleaner = Cleaner()
+def log(msg): print(f"[{datetime.utcnow()}] {msg}")
+
+# === DUMMY AI MODEL ===
+def compute_score(prices):
+    # Exemple : tendance simple via moyenne mobile
+    if len(prices) < 3:
+        return 0
+    trend = np.polyfit(range(len(prices)), prices, 1)[0]
+    return max(0, min(1, trend * 10))  # score entre 0 et 1
+
+def get_usdc_balance():
+    balance = exchange.fetch_balance()
+    return balance.get('USDC', {}).get('free', 0)
+
+def analyze_market():
+    tickers = exchange.fetch_tickers()
+    usdc_balance = get_usdc_balance()
+    log(f"💰 Solde USDC: {usdc_balance}")
+    for symbol in tickers:
+        if not symbol.endswith("/USDC"): continue
+        try:
+            ticker = tickers[symbol]
+            prices = [ticker['open'], ticker['high'], ticker['low'], ticker['close']]
+            score = compute_score(prices)
+            log(f"🔎 {symbol} score={score:.2f}")
+            if score >= SCORE_MIN and usdc_balance >= POSITION_BUDGET:
+                base = symbol.replace("/USDC", "")
+                amount = POSITION_BUDGET / ticker['last']
+                log(f"💰 Achat de {amount:.4f} {base} à {ticker['last']}")
+                # exchange.create_market_buy_order(symbol, amount)  # désactivé pour la sécurité
+        except Exception as e:
+            log(f"❌ Erreur {symbol}: {e}")
 
 while True:
     try:
-        log("🌀 Démarrage d’un nouveau cycle d’analyse...")
-        trader.run()
-        cleaner.run()
-        log("✅ Fin du cycle. Pause de 30s.")
-        time.sleep(30)
+        log("📊 Analyse du marché IA...")
+        analyze_market()
     except Exception as e:
-        log(f"🚨 Erreur globale : {e}")
-        time.sleep(30)
+        log(f"🚨 Erreur globale: {e}")
+    time.sleep(60)
