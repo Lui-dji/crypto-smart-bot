@@ -22,11 +22,10 @@ def log(msg): print(f"[{datetime.utcnow()}] {msg}")
 
 # === DUMMY AI MODEL ===
 def compute_score(prices):
-    # Exemple : tendance simple via moyenne mobile
-    if len(prices) < 3:
-        return 0
+    if len(prices) < 3 or any(p is None for p in prices):
+        return None
     trend = np.polyfit(range(len(prices)), prices, 1)[0]
-    return max(0, min(1, trend * 10))  # score entre 0 et 1
+    return max(0, min(1, trend * 10))
 
 def get_usdc_balance():
     balance = exchange.fetch_balance()
@@ -37,17 +36,21 @@ def analyze_market():
     usdc_balance = get_usdc_balance()
     log(f"💰 Solde USDC: {usdc_balance}")
     for symbol in tickers:
-        if not symbol.endswith("/USDC"): continue
+        if not symbol.endswith("/USDC") or symbol.count("/") != 1:
+            continue
         try:
             ticker = tickers[symbol]
-            prices = [ticker['open'], ticker['high'], ticker['low'], ticker['close']]
+            prices = [ticker.get('open'), ticker.get('high'), ticker.get('low'), ticker.get('close')]
             score = compute_score(prices)
+            if score is None:
+                log(f"📉 Crypto ignorée (données incomplètes) : {symbol}")
+                continue
             log(f"🔎 {symbol} score={score:.2f}")
             if score >= SCORE_MIN and usdc_balance >= POSITION_BUDGET:
                 base = symbol.replace("/USDC", "")
                 amount = POSITION_BUDGET / ticker['last']
                 log(f"💰 Achat de {amount:.4f} {base} à {ticker['last']}")
-                # exchange.create_market_buy_order(symbol, amount)  # désactivé pour la sécurité
+                # exchange.create_market_buy_order(symbol, amount)
         except Exception as e:
             log(f"❌ Erreur {symbol}: {e}")
 
