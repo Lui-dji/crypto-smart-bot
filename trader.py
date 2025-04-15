@@ -1,71 +1,43 @@
 import ccxt
 import os
 import time
-from utils import log, get_trend_score
+from utils import log, get_ohlcv_trend
 
-class TraderBot:
-    def __init__(self, score_min=0.35):
+class SmartGridBot:
+    def __init__(self):
         self.exchange = ccxt.binance({
-            'apiKey': os.getenv("API_KEY"),
-            'secret': os.getenv("SECRET_KEY"),
-            'enableRateLimit': True
+            "apiKey": os.getenv("API_KEY"),
+            "secret": os.getenv("SECRET_KEY"),
+            "enableRateLimit": True
         })
-        self.budget_per_position = float(os.getenv("POSITION_BUDGET", 15))
+        self.budget = float(os.getenv("POSITION_BUDGET", 15))
+        self.score_min = float(os.getenv("SCORE_MIN", 0.35))
         self.positions = {}
-        self.score_min = float(os.getenv("SCORE_MIN", score_min))
-        self.ignore_sell = [x.strip() for x in os.getenv("IGNORE_SELL", "").split(",") if x.strip()]
 
     def run(self):
-        try:
-            balance = self.exchange.fetch_balance()
-            tickers = self.exchange.fetch_tickers()
-            markets = self.exchange.load_markets()
-        except Exception as e:
-            log(f"❌ TraderBot Erreur API : {e}")
-            return
+        balance = self.exchange.fetch_balance()
+        usdc = balance["free"].get("USDC", 0)
+        tickers = self.exchange.fetch_tickers()
+        markets = self.exchange.load_markets()
 
         count = 0
-        for symbol, ticker in tickers.items():
+        for symbol in tickers:
             if "/USDC" not in symbol or symbol not in markets:
                 continue
-            if ticker['last'] is None:
-                continue
-            if count >= 300:
+            count += 1
+            if count > 100:
                 break
 
-            count += 1
-            base = symbol.replace("/USDC", "")
-            price = ticker['last']
-            score = get_trend_score(self.exchange, symbol)
+            score = get_ohlcv_trend(self.exchange, symbol)
             log(f"🔎 {symbol} score={score:.2f}")
-
             if score < self.score_min:
                 continue
 
-            usdc = balance['free'].get('USDC', 0)
-            if usdc >= self.budget_per_position:
-                qty = round(self.budget_per_position / price, 6)
+            price = tickers[symbol]['last']
+            if usdc >= self.budget:
+                qty = round(self.budget / price, 6)
                 try:
                     self.exchange.create_market_buy_order(symbol, qty)
-                    log(f"🟢 Achat {qty} {base} à {price} USDC (score: {score:.2f})")
-                    balance['free']['USDC'] -= qty * price
-                    self.positions[base] = price
+                    log(f"💰 Achat intelligent : {qty} {symbol} à {price}")
                 except Exception as e:
-                    log(f"❌ Erreur achat {base} : {e}")
-            elif self.positions:
-                worst = min(self.positions.items(), key=lambda x: x[1])
-                worst_symbol = f"{worst[0]}/USDC"
-
-                if worst[0] in self.ignore_sell:
-                    log(f"🚫 Ignoré pour vente (conservé) : {worst[0]}")
-                    continue
-
-                try:
-                    qty = balance.get(worst[0], {}).get("free", 0)
-                    if qty > 0:
-                        self.exchange.create_market_sell_order(worst_symbol, qty)
-                        log(f"🔁 Arbitrage : revente {qty} {worst[0]} pour acheter {base}")
-                        del self.positions[worst[0]]
-                        time.sleep(2)
-                except Exception as e:
-                    log(f"❌ Erreur arbitrage : {e}")
+                    log(f"❌ Erreur achat {symbol} : {e}")
