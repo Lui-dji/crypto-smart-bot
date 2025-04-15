@@ -1,4 +1,3 @@
-
 import ccxt
 import os
 import time
@@ -42,7 +41,6 @@ class Cleaner:
             minNotional = float(filters.get("NOTIONAL", {}).get("minNotional", 1))
 
             sell_qty = qty - (qty % step)
-            sell_qty = round(sell_qty, 6)
 
             if sell_qty >= minQty and sell_qty * price >= minNotional:
                 try:
@@ -50,3 +48,23 @@ class Cleaner:
                     log(f"🧹 Revente directe : {sell_qty} {base}")
                 except Exception as e:
                     log(f"❌ Erreur vente {base} : {e}")
+            else:
+                target_qty = max(minQty, minNotional / price)
+                buy_qty = target_qty - qty
+                buy_qty = round(buy_qty + (step - (buy_qty % step)), 6)
+
+                cost = buy_qty * price
+                if cost <= usdc and buy_qty > 0:
+                    try:
+                        self.exchange.create_market_buy_order(symbol, buy_qty)
+                        log(f"♻️ Achat flush {buy_qty:.6f} {base} pour résidu")
+                        time.sleep(1)
+                        total_qty = qty + buy_qty
+                        total_qty -= (total_qty % step)
+                        self.exchange.create_market_sell_order(symbol, total_qty)
+                        log(f"✅ Flush complet : {total_qty:.6f} {base} vendu")
+                        usdc -= cost
+                    except Exception as e:
+                        log(f"❌ Erreur flush {base} : {e}")
+                else:
+                    log(f"⏳ Résidu {base} trop petit ou insuffisant USDC ({qty:.6f})")

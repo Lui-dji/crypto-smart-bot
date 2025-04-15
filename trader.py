@@ -1,4 +1,3 @@
-
 import ccxt
 import os
 import time
@@ -13,8 +12,8 @@ class TraderBot:
         })
         self.budget_per_position = float(os.getenv("POSITION_BUDGET", 15))
         self.positions = {}
-        self.score_min = score_min
-        self.ignore_sell = os.getenv("IGNORE_SELL", "").split(",")
+        self.score_min = float(os.getenv("SCORE_MIN", score_min))
+        self.ignore_sell = [x.strip() for x in os.getenv("IGNORE_SELL", "").split(",") if x.strip()]
 
     def run(self):
         try:
