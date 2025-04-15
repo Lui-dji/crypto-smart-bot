@@ -1,33 +1,31 @@
-import os
+
 import ccxt
 import time
-from datetime import datetime
+from datetime import datetime, timezone
+import os
 
-print(f"[{datetime.utcnow()}] Lancement bot avec confirmations achat")
+def log(msg):
+    print(f"[{datetime.now(timezone.utc)}] {msg}")
 
-api_key = os.getenv("API_KEY")
-secret_key = os.getenv("SECRET_KEY")
-
-if not api_key or not secret_key:
-    print("❌ API_KEY ou SECRET_KEY manquant(e)")
-    exit()
+log("Lancement bot avec confirmations achat")
 
 exchange = ccxt.binance({
-    'apiKey': api_key,
-    'secret': secret_key,
-    'enableRateLimit': True,
-    'options': {'defaultType': 'spot'}
+    "apiKey": os.getenv("API_KEY"),
+    "secret": os.getenv("API_SECRET"),
+    "enableRateLimit": True,
+    "options": {"defaultType": "spot"}
 })
 
 symbol = "GMX/USDC"
-amount = 1  # exemple simple
+amount = 1
 
 try:
-    orderbook = exchange.fetch_order_book(symbol)
-    price = orderbook['asks'][0][0]
-    print(f"💰 Achat de {amount} {symbol.split('/')[0]} à {price}")
-
     order = exchange.create_market_buy_order(symbol, amount)
-    print(f"✅ Achat confirmé : {order}")
+    log(f"✅ Achat confirmé : {order}")
 except Exception as e:
-    print(f"❌ Erreur achat {symbol} : {e}")
+    log(f"❌ Erreur achat {symbol} : {e}")
+
+# Nouvelle boucle d'analyse (simulation)
+while True:
+    log("📊 Analyse du marché...")
+    time.sleep(30)
