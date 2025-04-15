@@ -1,10 +1,11 @@
+
 import ccxt
 import os
 import time
 from utils import log, get_trend_score
 
 class TraderBot:
-    def __init__(self, score_min=0.30):
+    def __init__(self, score_min=0.35):
         self.exchange = ccxt.binance({
             'apiKey': os.getenv("API_KEY"),
             'secret': os.getenv("SECRET_KEY"),

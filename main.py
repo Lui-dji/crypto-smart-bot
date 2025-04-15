@@ -1,24 +1,23 @@
+
 import ccxt
 import time
 from datetime import datetime, timezone
 import os
-from trader import TraderBot
 from cleaner import Cleaner
+from trader import TraderBot
 from utils import log
 
-log("Lancement bot avec confirmations achat")
+log("Lancement bot complet")
 
-exchange = ccxt.binance({
-    "apiKey": os.getenv("API_KEY"),
-    "secret": os.getenv("SECRET_KEY"),
-    "enableRateLimit": True,
-    "options": {"defaultType": "spot"}
-})
-
-bot = TraderBot(score_min=0.30)
-cleaner = Cleaner()
-
-while True:
+if os.getenv("BOT_ACTIVE", "true").lower() != "true":
+    log("⏸️ Bot inactif (BOT_ACTIVE est false)")
+else:
+    cleaner = Cleaner()
     cleaner.run()
-    bot.run()
-    time.sleep(30)
+    bot = TraderBot(
+        score_min=float(os.getenv("SCORE_MIN", 0.35))
+    )
+    while True:
+        bot.run()
+        log("✅ Fin du cycle. Pause de 30s.")
+        time.sleep(30)
