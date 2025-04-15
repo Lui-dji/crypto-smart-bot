@@ -1,31 +1,24 @@
-
 import ccxt
 import time
 from datetime import datetime, timezone
 import os
-
-def log(msg):
-    print(f"[{datetime.now(timezone.utc)}] {msg}")
+from trader import TraderBot
+from cleaner import Cleaner
+from utils import log
 
 log("Lancement bot avec confirmations achat")
 
 exchange = ccxt.binance({
     "apiKey": os.getenv("API_KEY"),
-    "secret": os.getenv("API_SECRET"),
+    "secret": os.getenv("SECRET_KEY"),
     "enableRateLimit": True,
     "options": {"defaultType": "spot"}
 })
 
-symbol = "GMX/USDC"
-amount = 1
+bot = TraderBot(score_min=0.30)
+cleaner = Cleaner()
 
-try:
-    order = exchange.create_market_buy_order(symbol, amount)
-    log(f"✅ Achat confirmé : {order}")
-except Exception as e:
-    log(f"❌ Erreur achat {symbol} : {e}")
-
-# Nouvelle boucle d'analyse (simulation)
 while True:
-    log("📊 Analyse du marché...")
+    cleaner.run()
+    bot.run()
     time.sleep(30)

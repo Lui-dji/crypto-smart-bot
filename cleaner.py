@@ -6,8 +6,8 @@ from utils import log
 class Cleaner:
     def __init__(self):
         self.exchange = ccxt.binance({
-            'apiKey': os.getenv("BINANCE_API_KEY"),
-            'secret': os.getenv("BINANCE_SECRET_KEY"),
+            'apiKey': os.getenv("API_KEY"),
+            'secret': os.getenv("SECRET_KEY"),
             'enableRateLimit': True
         })
 

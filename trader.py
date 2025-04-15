@@ -4,10 +4,10 @@ import time
 from utils import log, get_trend_score
 
 class TraderBot:
-    def __init__(self, score_min=0.35):
+    def __init__(self, score_min=0.30):
         self.exchange = ccxt.binance({
-            'apiKey': os.getenv("BINANCE_API_KEY"),
-            'secret': os.getenv("BINANCE_SECRET_KEY"),
+            'apiKey': os.getenv("API_KEY"),
+            'secret': os.getenv("SECRET_KEY"),
             'enableRateLimit': True
         })
         self.budget_per_position = float(os.getenv("POSITION_BUDGET", 15))
